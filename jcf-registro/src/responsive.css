@@ -1,0 +1,2 @@
+body { background: linear-gradient(180deg, #0aaef3 0 320px, #edf8fd 320px); }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 1px; padding: 0; }
