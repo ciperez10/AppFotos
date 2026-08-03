@@ -72,6 +72,85 @@ function scoreRectangle(rect, edgeSum, graySum, width, height) {
   return edgeAverage * .58 + edgeFloor * .16 + contrastAverage * .62 + globalContrast * 1.45 + Math.min(area, .38) * 500 - ratioPenalty - areaPenalty - marginPenalty - centerPenalty;
 }
 
+function horizontalLineScore(base, slope, x1, x2, gradient, gray, width, height) {
+  const center = (x1 + x2) / 2, step = Math.max(2, Math.round((x2 - x1) / 120)), values = [], contrasts = [];
+  for (let x = x1; x <= x2; x += step) {
+    const y = Math.round(base + slope * (x - center));
+    if (y < 3 || y >= height - 3) continue;
+    values.push(gradient[y * width + x]); contrasts.push(Math.abs(gray[(y - 2) * width + x] - gray[(y + 2) * width + x]));
+  }
+  if (values.length < 12) return 0;
+  values.sort((a, b) => a - b);
+  return values.reduce((sum, value) => sum + value, 0) / values.length * .58 + values[Math.floor(values.length * .3)] * .42 + contrasts.reduce((sum, value) => sum + value, 0) / contrasts.length * .45;
+}
+
+function verticalLineScore(base, slope, y1, y2, gradient, gray, width, height) {
+  const center = (y1 + y2) / 2, step = Math.max(2, Math.round((y2 - y1) / 120)), values = [], contrasts = [];
+  for (let y = y1; y <= y2; y += step) {
+    const x = Math.round(base + slope * (y - center));
+    if (x < 3 || x >= width - 3) continue;
+    values.push(gradient[y * width + x]); contrasts.push(Math.abs(gray[y * width + x - 2] - gray[y * width + x + 2]));
+  }
+  if (values.length < 12) return 0;
+  values.sort((a, b) => a - b);
+  return values.reduce((sum, value) => sum + value, 0) / values.length * .58 + values[Math.floor(values.length * .3)] * .42 + contrasts.reduce((sum, value) => sum + value, 0) / contrasts.length * .45;
+}
+
+function searchHorizontalLine(centerY, x1, x2, range, gradient, gray, width, height) {
+  let best = null;
+  for (let slope = -.12; slope <= .1201; slope += .015) {
+    for (let base = Math.max(3, Math.round(centerY - range)); base <= Math.min(height - 4, Math.round(centerY + range)); base += 2) {
+      const score = horizontalLineScore(base, slope, x1, x2, gradient, gray, width, height) - Math.abs(base - centerY) / range * 2;
+      if (!best || score > best.score) best = { base, slope, score };
+    }
+  }
+  return best;
+}
+
+function searchVerticalLine(centerX, y1, y2, range, gradient, gray, width, height) {
+  let best = null;
+  for (let slope = -.12; slope <= .1201; slope += .015) {
+    for (let base = Math.max(3, Math.round(centerX - range)); base <= Math.min(width - 4, Math.round(centerX + range)); base += 2) {
+      const score = verticalLineScore(base, slope, y1, y2, gradient, gray, width, height) - Math.abs(base - centerX) / range * 2;
+      if (!best || score > best.score) best = { base, slope, score };
+    }
+  }
+  return best;
+}
+
+function intersection(horizontal, vertical, horizontalCenter, verticalCenter) {
+  const horizontalIntercept = horizontal.base - horizontal.slope * horizontalCenter;
+  const verticalIntercept = vertical.base - vertical.slope * verticalCenter;
+  const x = (vertical.slope * horizontalIntercept + verticalIntercept) / (1 - vertical.slope * horizontal.slope);
+  return { x, y: horizontal.slope * x + horizontalIntercept };
+}
+
+export function refineRectangleCorners(rect, gradientX, gradientY, gray, width, height) {
+  if (!rect || !gradientX || !gradientY) return null;
+  const horizontalRange = Math.max(16, Math.min(height * .09, rect.h * .24)), verticalRange = Math.max(16, Math.min(width * .14, rect.w * .22));
+  const xInset = rect.w * .06, yInset = rect.h * .06, x1 = Math.max(5, Math.round(rect.x + xInset)), x2 = Math.min(width - 6, Math.round(rect.x + rect.w - xInset));
+  const y1 = Math.max(5, Math.round(rect.y + yInset)), y2 = Math.min(height - 6, Math.round(rect.y + rect.h - yInset));
+  let top = searchHorizontalLine(rect.y, x1, x2, horizontalRange, gradientY, gray, width, height), bottom = searchHorizontalLine(rect.y + rect.h, x1, x2, horizontalRange, gradientY, gray, width, height);
+  let left = searchVerticalLine(rect.x, y1, y2, verticalRange, gradientX, gray, width, height), right = searchVerticalLine(rect.x + rect.w, y1, y2, verticalRange, gradientX, gray, width, height);
+  if (![top, right, bottom, left].every(line => line?.score >= 8)) return null;
+  const horizontalCenter = (x1 + x2) / 2, verticalCenter = (y1 + y2) / 2;
+  const intersections = () => [intersection(top, left, horizontalCenter, verticalCenter), intersection(top, right, horizontalCenter, verticalCenter), intersection(bottom, right, horizontalCenter, verticalCenter), intersection(bottom, left, horizontalCenter, verticalCenter)];
+  let corners = intersections(), initialRatio = ratioOf(corners);
+  if (initialRatio < 1.4) {
+    const desiredWidth = Math.abs(bottom.base - top.base) * CARD_ASPECT, leftInward = Math.max(0, left.base - rect.x), rightInward = Math.max(0, rect.x + rect.w - right.base);
+    if (rightInward >= leftInward) right = { ...right, base: Math.min(width - 2, left.base + desiredWidth) }; else left = { ...left, base: Math.max(2, right.base - desiredWidth) };
+    corners = intersections();
+  } else if (initialRatio > 1.82) {
+    const desiredHeight = Math.abs(right.base - left.base) / CARD_ASPECT, topInward = Math.max(0, top.base - rect.y), bottomInward = Math.max(0, rect.y + rect.h - bottom.base);
+    if (bottomInward >= topInward) bottom = { ...bottom, base: Math.min(height - 2, top.base + desiredHeight) }; else top = { ...top, base: Math.max(2, bottom.base - desiredHeight) };
+    corners = intersections();
+  }
+  if (corners.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return null;
+  corners.forEach(point => { point.x = Math.max(2, Math.min(width - 2, point.x)); point.y = Math.max(2, Math.min(height - 2, point.y)); });
+  const ratio = ratioOf(corners), area = polygonArea(corners) / (width * height);
+  return ratio >= 1.4 && ratio <= 1.82 && area >= .1 && area <= .8 ? corners : null;
+}
+
 export function findCardRectangle(strength, gray, width, height) {
   const edgeSum = integral(strength, width, height), graySum = integral(gray, width, height);
   const ratios = [1.38, 1.48, 1.52, CARD_ASPECT, 1.66, 1.75], gridX = Math.max(5, Math.round(width / 48)), gridY = Math.max(5, Math.round(height / 56));
@@ -109,7 +188,7 @@ export async function detectCardEdges(sourceCanvas, { signal, timeoutMs = 5000 }
   const width = Math.max(120, Math.round(sourceCanvas.width * scale)), height = Math.max(80, Math.round(sourceCanvas.height * scale));
   const work = document.createElement('canvas'); work.width = width; work.height = height;
   const ctx = work.getContext('2d', { willReadFrequently: true }); ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  const image = ctx.getImageData(0, 0, width, height), gray = new Uint8Array(width * height), strength = new Float32Array(width * height), magnitudes = [];
+  const image = ctx.getImageData(0, 0, width, height), gray = new Uint8Array(width * height), strength = new Float32Array(width * height), gradientX = new Float32Array(width * height), gradientY = new Float32Array(width * height), magnitudes = [];
   for (let i = 0; i < gray.length; i += 1) gray[i] = image.data[i * 4] * .299 + image.data[i * 4 + 1] * .587 + image.data[i * 4 + 2] * .114;
   for (let y = 1; y < height - 1; y += 1) {
     if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
@@ -118,7 +197,7 @@ export async function detectCardEdges(sourceCanvas, { signal, timeoutMs = 5000 }
       const i = y * width + x;
       const gx = -gray[i - width - 1] - 2 * gray[i - 1] - gray[i + width - 1] + gray[i - width + 1] + 2 * gray[i + 1] + gray[i + width + 1];
       const gy = -gray[i - width - 1] - 2 * gray[i - width] - gray[i - width + 1] + gray[i + width - 1] + 2 * gray[i + width] + gray[i + width + 1];
-      const value = Math.min(255, Math.hypot(gx, gy) / 4); strength[i] = value; magnitudes.push(value);
+      const value = Math.min(255, Math.hypot(gx, gy) / 4); gradientX[i] = Math.min(255, Math.abs(gx) / 4); gradientY[i] = Math.min(255, Math.abs(gy) / 4); strength[i] = value; magnitudes.push(value);
     }
     if (y % 45 === 0) await new Promise(resolve => setTimeout(resolve, 0));
   }
@@ -144,7 +223,7 @@ export async function detectCardEdges(sourceCanvas, { signal, timeoutMs = 5000 }
   }
   if (!cornersSmall) {
     const rect = findCardRectangle(strength, gray, width, height);
-    if (rect) { strategy = 'rectangle'; score = Math.round(rect.score * 10) / 10; cornersSmall = [{ x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y + rect.h }, { x: rect.x, y: rect.y + rect.h }]; }
+    if (rect) { const refined = refineRectangleCorners(rect, gradientX, gradientY, gray, width, height); strategy = refined ? 'quadrilateral' : 'rectangle'; score = Math.round(rect.score * 10) / 10; cornersSmall = refined || [{ x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y + rect.h }, { x: rect.x, y: rect.y + rect.h }]; }
   }
   if (!cornersSmall) throw new Error('No se encontró un contorno de cédula confiable.');
   const corners = cornersSmall.map(p => ({ x: p.x / scale, y: p.y / scale }));
