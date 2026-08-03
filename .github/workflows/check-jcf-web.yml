@@ -1,0 +1,29 @@
+name: Validar JCF Registro Web
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'jcf-registro/**'
+      - '.github/workflows/check-jcf-web.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Revisar sintaxis JavaScript
+        run: |
+          node --check jcf-registro/config.js
+          node --check jcf-registro/crop.js
+          node --check jcf-registro/ocr.js
+          node --check jcf-registro/ocr-v07.js
+          node --check jcf-registro/debug-extra.js
+          node --check jcf-registro/ocr-v08.js
+          node --check jcf-registro/records.js
