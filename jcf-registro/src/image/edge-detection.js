@@ -62,15 +62,19 @@ function scoreRectangle(rect, edgeSum, graySum, width, height) {
   const edgeAverage = edges.reduce((a, b) => a + b, 0) / 4;
   const contrastAverage = contrasts.reduce((a, b) => a + b, 0) / 4;
   const edgeFloor = [...edges].sort((a, b) => a - b)[1];
-  const area = w * h / (width * height), ratioPenalty = Math.abs(Math.log((w / h) / CARD_ASPECT)) * 18;
+  const ring = Math.max(8, band * 5), ox = Math.max(0, x - ring), oy = Math.max(0, y - ring), ox2 = Math.min(width, x + w + ring), oy2 = Math.min(height, y + h + ring);
+  const outerArea = (ox2 - ox) * (oy2 - oy), innerArea = w * h, innerMean = mean(graySum, width, height, x, y, w, h), outerMean = mean(graySum, width, height, ox, oy, ox2 - ox, oy2 - oy);
+  const ringMean = (outerMean * outerArea - innerMean * innerArea) / Math.max(1, outerArea - innerArea), globalContrast = Math.abs(innerMean - ringMean);
+  const area = innerArea / (width * height), ratioPenalty = Math.abs(Math.log((w / h) / CARD_ASPECT)) * 38;
   const areaPenalty = area > .72 ? (area - .72) * 240 : area < .12 ? (.12 - area) * 240 : 0;
   const marginPenalty = x < width * .015 || y < height * .015 || x + w > width * .985 || y + h > height * .985 ? 18 : 0;
-  return edgeAverage * .72 + edgeFloor * .22 + contrastAverage * 1.35 - ratioPenalty - areaPenalty - marginPenalty;
+  const centerPenalty = Math.hypot(x + w / 2 - width / 2, y + h / 2 - height / 2) / Math.hypot(width, height) * 18;
+  return edgeAverage * .58 + edgeFloor * .16 + contrastAverage * .62 + globalContrast * 1.45 + Math.min(area, .38) * 500 - ratioPenalty - areaPenalty - marginPenalty - centerPenalty;
 }
 
 export function findCardRectangle(strength, gray, width, height) {
   const edgeSum = integral(strength, width, height), graySum = integral(gray, width, height);
-  const ratios = [1.28, 1.4, 1.5, CARD_ASPECT, 1.7, 1.85], gridX = Math.max(5, Math.round(width / 48)), gridY = Math.max(5, Math.round(height / 56));
+  const ratios = [1.38, 1.48, 1.52, CARD_ASPECT, 1.66, 1.75], gridX = Math.max(5, Math.round(width / 48)), gridY = Math.max(5, Math.round(height / 56));
   let best = null;
   for (let w = Math.round(width * .9); w >= width * .3; w -= Math.max(12, Math.round(width / 24))) {
     for (const ratio of ratios) {
