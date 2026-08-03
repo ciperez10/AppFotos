@@ -1,0 +1,1 @@
+Compilación limpia de JCF Registro con Google ML Kit OCR latino.
