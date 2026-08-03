@@ -11,7 +11,7 @@
 <link href="./icon.svg" rel="icon" type="image/svg+xml"/>
 <title>JCF Registro</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
-<link href="./style.css?v=070" rel="stylesheet"/>
+<link href="./style.css?v=080" rel="stylesheet"/>
 </head>
 <body>
 <main class="app">
@@ -44,7 +44,7 @@
     <div class="diagnostic-meta" id="diagnosticMeta"></div>
     <div class="diagnostic-canvas-wrap"><canvas id="diagnosticCanvas"></canvas></div>
     <div class="debug-help"><strong>Corrige primero todos los campos del tutor.</strong><span>El informe incluirá automáticamente la diferencia entre lo detectado y lo corregido.</span></div>
-    <label for="debugNote">¿Qué salió mal? (opcional)</label><textarea id="debugNote" rows="3" placeholder="Ej.: repitió los nombres como apellidos o no leyó la ocupación."></textarea>
+    <label for="debugNote">¿Qué salió mal? (opcional)</label><textarea id="debugNote" rows="3" placeholder="Ej.: confundió PÉREZ con FÉREZ o no leyó la ocupación."></textarea>
     <h4>Recortes exactos enviados al OCR</h4><div class="debug-grid" id="debugCrops"></div>
     <details class="technical" open><summary>Ver texto y datos técnicos completos</summary><pre id="diagnosticText"></pre></details>
     <button class="btn dark" id="shareDiagnosticBtn" type="button">Compartir informe + imagen + JSON</button>
@@ -79,5 +79,5 @@
 </section>
 <section class="card"><details><summary>Privacidad y límites</summary><p class="legal">Esta herramienta copia texto visible de una cédula; no confirma que el documento sea auténtico ni consulta a la Junta Central Electoral. Revisa cada dato antes de guardarlo. No uses la información para fines distintos a los autorizados.</p></details></section>
 </main>
-<script defer src="./config.js?v=070"></script><script defer src="./crop.js?v=070"></script><script defer src="./ocr.js?v=070"></script><script defer src="./ocr-v07.js?v=070"></script><script defer src="./debug-extra.js?v=070"></script><script defer src="./records.js?v=070"></script>
+<script defer src="./config.js?v=080"></script><script defer src="./crop.js?v=080"></script><script defer src="./ocr.js?v=080"></script><script defer src="./ocr-v07.js?v=080"></script><script defer src="./debug-extra.js?v=080"></script><script defer src="./ocr-v08.js?v=080"></script><script defer src="./records.js?v=080"></script>
 </body></html>
