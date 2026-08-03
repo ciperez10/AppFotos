@@ -2,6 +2,14 @@ import { defaultCorners } from '../image/edge-detection.js';
 
 const LABELS = ['1', '2', '3', '4'];
 
+export function drawCornerOverlay(canvas, source, corners, mode = 'manual') {
+  if (!source || corners?.length !== 4) return;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  ctx.save(); ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.moveTo(corners[0].x, corners[0].y); corners.slice(1).forEach(point => ctx.lineTo(point.x, point.y)); ctx.closePath(); ctx.fill('evenodd');
+  ctx.strokeStyle = mode === 'automatic' ? '#65f5b9' : '#0AAEF3'; ctx.lineWidth = Math.max(4, canvas.width * .004); ctx.lineJoin = 'round'; ctx.beginPath(); corners.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.closePath(); ctx.stroke();
+  const radius = Math.max(14, canvas.width * .015); corners.forEach((point, index) => { ctx.fillStyle = 'white'; ctx.strokeStyle = '#0AAEF3'; ctx.lineWidth = Math.max(3, radius * .18); ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#0E1F53'; ctx.font = `900 ${Math.round(radius)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(LABELS[index], point.x, point.y + 1); }); ctx.restore();
+}
+
 export function containMetrics(sourceWidth, sourceHeight, boxWidth, boxHeight) {
   const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
   const width = sourceWidth * scale, height = sourceHeight * scale;
@@ -40,10 +48,7 @@ export class CropEditor {
   pointerMove(event) { if (this.dragIndex < 0) return; const p = this.point(event), margin = 2; this.corners[this.dragIndex] = { x: Math.max(margin, Math.min(this.canvas.width - margin, p.x)), y: Math.max(margin, Math.min(this.canvas.height - margin, p.y)) }; this.mode = 'manual'; this.draw(); this.onChange(this.getCorners(), this.mode, 'drag'); event.preventDefault(); }
   pointerUp(event) { if (this.dragIndex >= 0 && this.canvas.hasPointerCapture?.(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId); this.dragIndex = -1; }
   draw() {
-    if (!this.source) return; const { ctx, canvas, corners } = this; ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(this.source, 0, 0);
-    ctx.save(); ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.moveTo(corners[0].x, corners[0].y); corners.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.fill('evenodd');
-    ctx.strokeStyle = this.mode === 'automatic' ? '#65f5b9' : '#0AAEF3'; ctx.lineWidth = Math.max(4, canvas.width * .004); ctx.lineJoin = 'round'; ctx.beginPath(); corners.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
-    const radius = Math.max(14, canvas.width * .015); corners.forEach((p, i) => { ctx.fillStyle = 'white'; ctx.strokeStyle = '#0AAEF3'; ctx.lineWidth = Math.max(3, radius * .18); ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#0E1F53'; ctx.font = `900 ${Math.round(radius)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(LABELS[i], p.x, p.y + 1); }); ctx.restore();
+    drawCornerOverlay(this.canvas, this.source, this.corners, this.mode);
   }
   destroy() { this.source = null; this.corners = []; this.canvas.width = 1; this.canvas.height = 1; }
 }
