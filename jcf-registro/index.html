@@ -11,7 +11,8 @@
 <link href="./icon.svg" rel="icon" type="image/svg+xml"/>
 <title>JCF Registro</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
-<link href="./style.css?v=080" rel="stylesheet"/>
+<link href="./style.css?v=081" rel="stylesheet"/>
+<link href="./lab-v08.css?v=081" rel="stylesheet"/>
 </head>
 <body>
 <main class="app">
@@ -31,6 +32,7 @@
     <div class="button-row" style="margin-top:14px"><button class="btn primary mini" id="cameraBtn" type="button">📷 Tomar foto</button><button class="btn light mini" id="galleryBtn" type="button">🖼️ Elegir de Fotos</button></div>
     <input accept="image/*" capture="environment" id="cedulaCamara" style="display:none" type="file"/><input accept="image/*" id="cedulaFoto" style="display:none" type="file"/>
   </div>
+  <label class="lab-switch"><input id="labModeToggle" type="checkbox" checked/><span><strong>🧪 Modo laboratorio</strong><small>Hace más comprobaciones y genera un informe técnico completo. Puede tardar unos segundos más.</small></span></label>
   <div id="editorWrap">
     <div class="canvas-wrap"><canvas id="cropCanvas"></canvas></div>
     <p class="editor-help">Mueve el recuadro azul para dejar solamente la cédula. Arrastra las esquinas para ajustarlo.</p>
@@ -40,11 +42,13 @@
   <div class="progress" id="ocrProgress"><div id="ocrBar"></div></div><div class="status" id="ocrStatus"></div>
   <p class="note">La fotografía se procesa dentro del navegador y no se almacena ni se agrega al registro.</p>
   <div class="diagnostic" id="diagnosticWrap" style="display:none">
-    <div class="diagnostic-head"><div><h3>Paquete de depuración OCR</h3><p>Incluye la imagen marcada, los recortes exactos, confianza, tiempos, calidad, texto bruto y comparación con tus correcciones.</p></div><span class="diagnostic-badge">DEBUG</span></div>
+    <div class="diagnostic-head"><div><h3>Paquete de laboratorio OCR</h3><p>Incluye la imagen marcada, versiones de contraste, recortes exactos, confianza, tiempos, texto bruto, decisiones y comparación con tus correcciones.</p></div><span class="diagnostic-badge">LAB</span></div>
     <div class="diagnostic-meta" id="diagnosticMeta"></div>
     <div class="diagnostic-canvas-wrap"><canvas id="diagnosticCanvas"></canvas></div>
     <div class="debug-help"><strong>Corrige primero todos los campos del tutor.</strong><span>El informe incluirá automáticamente la diferencia entre lo detectado y lo corregido.</span></div>
     <label for="debugNote">¿Qué salió mal? (opcional)</label><textarea id="debugNote" rows="3" placeholder="Ej.: confundió PÉREZ con FÉREZ o no leyó la ocupación."></textarea>
+    <h4>Laboratorio de imagen</h4><div class="lab-grid" id="labVisuals"></div>
+    <h4>Decisiones, reglas y ganadores</h4><div class="lab-decisions" id="labDecisions"></div>
     <h4>Recortes exactos enviados al OCR</h4><div class="debug-grid" id="debugCrops"></div>
     <details class="technical" open><summary>Ver texto y datos técnicos completos</summary><pre id="diagnosticText"></pre></details>
     <button class="btn dark" id="shareDiagnosticBtn" type="button">Compartir informe + imagen + JSON</button>
@@ -58,7 +62,9 @@
   <input id="nombreTutor" type="hidden"/>
   <label for="cedula">Cédula</label><input class="masked" id="cedula" inputmode="numeric" maxlength="13" placeholder="000-0000000-0"/>
   <label for="lugarNacimientoTutor">Lugar de nacimiento</label><input id="lugarNacimientoTutor" placeholder="Ej.: La Habana, Cuba"/>
+  <label for="nacionalidadTutor">Nacionalidad</label><input id="nacionalidadTutor" placeholder="Ej.: República Dominicana"/>
   <div class="row"><div><label for="fechaNacimientoTutor">Fecha de nacimiento</label><input id="fechaNacimientoTutor" placeholder="DD MES AAAA"/></div><div><label for="sexoTutor">Sexo</label><select id="sexoTutor"><option value="">Seleccionar</option><option value="M">Masculino (M)</option><option value="F">Femenino (F)</option></select></div></div>
+  <div class="row"><div><label for="tipoSangreTutor">Tipo de sangre</label><input id="tipoSangreTutor" placeholder="Ej.: O+"/></div><div><label for="estadoCivilTutor">Estado civil</label><input id="estadoCivilTutor" placeholder="Ej.: Soltero"/></div></div>
   <label for="ocupacionTutor">Ocupación</label><input id="ocupacionTutor" placeholder="Ej.: Empleado(a) público"/>
   <label for="telefono">Teléfono</label><input autocomplete="tel" id="telefono" inputmode="tel" placeholder="809-000-0000"/>
   <label for="comunidad">Comunidad o sector</label><input id="comunidad" placeholder="Ej.: El Cacique"/>
@@ -79,5 +85,5 @@
 </section>
 <section class="card"><details><summary>Privacidad y límites</summary><p class="legal">Esta herramienta copia texto visible de una cédula; no confirma que el documento sea auténtico ni consulta a la Junta Central Electoral. Revisa cada dato antes de guardarlo. No uses la información para fines distintos a los autorizados.</p></details></section>
 </main>
-<script defer src="./config.js?v=080"></script><script defer src="./crop.js?v=080"></script><script defer src="./ocr.js?v=080"></script><script defer src="./ocr-v07.js?v=080"></script><script defer src="./debug-extra.js?v=080"></script><script defer src="./ocr-v08.js?v=080"></script><script defer src="./records.js?v=080"></script>
+<script defer src="./config.js?v=081"></script><script defer src="./crop.js?v=081"></script><script defer src="./ocr.js?v=081"></script><script defer src="./ocr-v07.js?v=081"></script><script defer src="./debug-extra.js?v=081"></script><script defer src="./ocr-v08.js?v=081"></script><script defer src="./lab-v08.js?v=081"></script><script defer src="./lab-v08-fix.js?v=081"></script><script defer src="./records.js?v=081"></script>
 </body></html>
