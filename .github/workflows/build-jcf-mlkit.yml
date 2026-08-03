@@ -60,11 +60,7 @@ jobs:
           gradle.write_text(text)
 
           rules = root / 'android/app/proguard-rules.pro'
-          rules.write_text('''-dontwarn com.google.mlkit.vision.text.chinese.**
--dontwarn com.google.mlkit.vision.text.devanagari.**
--dontwarn com.google.mlkit.vision.text.japanese.**
--dontwarn com.google.mlkit.vision.text.korean.**
-''')
+          rules.write_text("-dontwarn com.google.mlkit.vision.text.chinese.**\n-dontwarn com.google.mlkit.vision.text.devanagari.**\n-dontwarn com.google.mlkit.vision.text.japanese.**\n-dontwarn com.google.mlkit.vision.text.korean.**\n")
 
           manifest = root / 'android/app/src/main/AndroidManifest.xml'
           manifest.write_text(manifest.read_text().replace('android:label="jcf_registro"', 'android:label="JCF Registro"'))
