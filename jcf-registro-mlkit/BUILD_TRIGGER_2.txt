@@ -1,0 +1,1 @@
+Segunda validación automática del APK con reglas R8 para Google ML Kit.
