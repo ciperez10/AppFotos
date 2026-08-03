@@ -1,0 +1,1 @@
+Validación automática de la aplicación móvil JCF Registro con Google ML Kit.
