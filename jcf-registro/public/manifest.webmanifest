@@ -1,0 +1,12 @@
+{
+  "name": "JCF Registro",
+  "short_name": "JCF Registro",
+  "description": "Registro local de familias beneficiadas por la Fundación JCF.",
+  "lang": "es-DO",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDF8FD",
+  "theme_color": "#0AAEF3",
+  "icons": [{"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

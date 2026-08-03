@@ -1,0 +1,54 @@
+import { defaultCorners } from '../image/edge-detection.js';
+
+const LABELS = ['1', '2', '3', '4'];
+
+export function drawCornerOverlay(canvas, source, corners, mode = 'manual') {
+  if (!source || corners?.length !== 4) return;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  ctx.save(); ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.moveTo(corners[0].x, corners[0].y); corners.slice(1).forEach(point => ctx.lineTo(point.x, point.y)); ctx.closePath(); ctx.fill('evenodd');
+  ctx.strokeStyle = mode === 'automatic' ? '#65f5b9' : '#0AAEF3'; ctx.lineWidth = Math.max(4, canvas.width * .004); ctx.lineJoin = 'round'; ctx.beginPath(); corners.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.closePath(); ctx.stroke();
+  const radius = Math.max(14, canvas.width * .015); corners.forEach((point, index) => { ctx.fillStyle = 'white'; ctx.strokeStyle = '#0AAEF3'; ctx.lineWidth = Math.max(3, radius * .18); ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#0E1F53'; ctx.font = `900 ${Math.round(radius)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(LABELS[index], point.x, point.y + 1); }); ctx.restore();
+}
+
+export function containMetrics(sourceWidth, sourceHeight, boxWidth, boxHeight) {
+  const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
+  const width = sourceWidth * scale, height = sourceHeight * scale;
+  return { left: (boxWidth - width) / 2, top: (boxHeight - height) / 2, width, height };
+}
+
+export function pointInContainedCanvas(clientX, clientY, rect, sourceWidth, sourceHeight) {
+  const content = containMetrics(sourceWidth, sourceHeight, rect.width, rect.height);
+  return {
+    x: (clientX - rect.left - content.left) * sourceWidth / content.width,
+    y: (clientY - rect.top - content.top) * sourceHeight / content.height,
+    content
+  };
+}
+
+export class CropEditor {
+  constructor(canvas, onChange = () => {}) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.onChange = onChange; this.source = null; this.corners = []; this.dragIndex = -1;
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown', event => this.pointerDown(event), { passive: false });
+    canvas.addEventListener('pointermove', event => this.pointerMove(event), { passive: false });
+    ['pointerup', 'pointercancel'].forEach(type => canvas.addEventListener(type, event => this.pointerUp(event)));
+    canvas.addEventListener('lostpointercapture', () => { this.dragIndex = -1; });
+  }
+  setSource(source) { this.source = source; this.canvas.width = source.width; this.canvas.height = source.height; this.reset(); }
+  setCorners(corners, mode = 'manual', reason = 'programmatic') { this.corners = corners.map(p => ({ ...p })); this.mode = mode; this.draw(); this.onChange(this.getCorners(), mode, reason); }
+  reset() { if (this.source) this.setCorners(defaultCorners(this.source.width, this.source.height), 'manual', 'reset'); }
+  getCorners() { return this.corners.map(p => ({ ...p })); }
+  point(event) { return pointInContainedCanvas(event.clientX, event.clientY, this.canvas.getBoundingClientRect(), this.canvas.width, this.canvas.height); }
+  pointerDown(event) {
+    const p = this.point(event), cssRadius = event.pointerType === 'touch' ? 58 : 38, radius = Math.max(28, cssRadius * this.canvas.width / p.content.width);
+    let best = -1, distance = Infinity;
+    this.corners.forEach((corner, i) => { const d = Math.hypot(p.x - corner.x, p.y - corner.y); if (d < distance && d < radius) { best = i; distance = d; } });
+    if (best >= 0) { this.dragIndex = best; try { this.canvas.setPointerCapture?.(event.pointerId); } catch {} event.preventDefault(); }
+  }
+  pointerMove(event) { if (this.dragIndex < 0) return; const p = this.point(event), margin = 2; this.corners[this.dragIndex] = { x: Math.max(margin, Math.min(this.canvas.width - margin, p.x)), y: Math.max(margin, Math.min(this.canvas.height - margin, p.y)) }; this.mode = 'manual'; this.draw(); this.onChange(this.getCorners(), this.mode, 'drag'); event.preventDefault(); }
+  pointerUp(event) { if (this.dragIndex >= 0 && this.canvas.hasPointerCapture?.(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId); this.dragIndex = -1; }
+  draw() {
+    drawCornerOverlay(this.canvas, this.source, this.corners, this.mode);
+  }
+  destroy() { this.source = null; this.corners = []; this.canvas.width = 1; this.canvas.height = 1; }
+}

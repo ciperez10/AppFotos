@@ -2,10 +2,8 @@ name: Publicar JCF Registro
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'jcf-registro/**'
-      - '.github/workflows/jcf-registro-pages.yml'
+    branches: [main, codex/jcf-registro-v1-beta]
+    paths: ['jcf-registro/**', '.github/workflows/jcf-registro-pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -14,8 +12,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: jcf-registro-pages
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -23,15 +21,29 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jcf-registro
     steps:
-      - name: Descargar archivos
-        uses: actions/checkout@v6
-      - name: Configurar GitHub Pages
-        uses: actions/configure-pages@v5
-      - name: Preparar sitio
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          path: './jcf-registro'
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jcf-registro/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Preparar ruta de Pages
+        run: |
+          mkdir -p ../_site/jcf-registro
+          cp -R dist/. ../_site/jcf-registro/
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: './_site'
       - name: Publicar sitio
         id: deployment
         uses: actions/deploy-pages@v4
