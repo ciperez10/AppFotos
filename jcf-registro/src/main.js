@@ -12,7 +12,7 @@ import { histogramCanvas, imageQuality } from './image/quality.js';
 import { LocalOcrEngine } from './ocr/worker.js';
 import { buildTechnicalReport } from './debug/report.js';
 import { exportDebugPackage } from './debug/export.js';
-import { buildCalibrationReport, exportCalibration } from './debug/calibration.js';
+import { buildCalibrationReport, exportCalibrationPackage } from './debug/calibration.js';
 import { renderLabVisuals, renderPassTable } from './debug/visuals.js';
 import { clearRecords, deleteRecord, listRecords, maskCedula, putRecord } from './storage/records.js';
 import { downloadCsv } from './storage/csv.js';
@@ -20,14 +20,14 @@ import { downloadCsv } from './storage/csv.js';
 const $ = id => document.getElementById(id);
 const editorCanvas = $('editorCanvas'), normalizedDisplay = $('normalizedCanvas');
 const status = createStatusController({ panel: $('statusPanel'), icon: $('statusIcon'), text: $('statusText'), detail: $('statusDetail') });
-let automaticCorners = null, detectorMeta = {}, manualCalibration = false, calibrationLearned = false;
+let automaticCorners = null, suggestedCorners = null, detectorMeta = {}, manualCalibration = false, calibrationLearned = false;
 const editor = new CropEditor(editorCanvas, (_, mode, reason) => { $('alignmentMode').textContent = mode === 'automatic' ? 'Alineación automática' : 'Ajuste manual'; if (reason === 'drag') { manualCalibration = true; calibrationLearned = false; $('calibrationBtn').disabled = false; } if (normalizedCanvas) { clearCanvas(normalizedCanvas); normalizedCanvas = null; $('normalizedSection').hidden = true; } });
 let sourceCanvas = null, normalizedCanvas = null, edgeCanvas = null, currentResult = null, ocrEngine = null, analysisController = null, draftChildren = [], inputMeta = { source: '', size: 0, type: '' };
 
 function setVersion() { document.title = APP_LABEL; $('appTitle').textContent = APP_LABEL; $('headerVersion').textContent = `v${VERSION}`; $('buildLabel').textContent = `Compilación ${BUILD_ID}`; $('statusVersion').textContent = APP_LABEL; $('footerVersion').textContent = `${APP_LABEL} · compilación ${BUILD_ID}`; }
 function copyCanvas(source, target) { target.width = source.width; target.height = source.height; target.getContext('2d').drawImage(source, 0, 0); }
 function resetReading() { currentResult = null; $('fieldWarnings').replaceChildren(); $('labSection').hidden = true; }
-function resetCalibration() { automaticCorners = null; detectorMeta = {}; manualCalibration = false; calibrationLearned = false; $('calibrationBtn').disabled = true; }
+function resetCalibration() { automaticCorners = suggestedCorners = null; detectorMeta = {}; manualCalibration = false; calibrationLearned = false; $('calibrationBtn').disabled = true; }
 
 function rememberCalibration() {
   if (calibrationLearned || !manualCalibration || !automaticCorners || !sourceCanvas) return null;
@@ -45,17 +45,18 @@ async function loadImage(file, source) {
 
 async function runDetection() {
   if (!sourceCanvas) return; status.set('detecting', 'Máximo 5 segundos; el ajuste manual siempre queda disponible.'); $('detectBtn').disabled = true;
-  try { const result = await detectCardEdges(sourceCanvas, { timeoutMs: 5000 }); edgeCanvas = result.edgeCanvas; automaticCorners = result.corners.map(point => ({ ...point })); detectorMeta = { strategy: result.strategy, elapsedMs: result.elapsedMs, threshold: result.threshold, score: result.score }; const calibrated = applyCalibration(result.corners, sourceCanvas.width, sourceCanvas.height, result.strategy); manualCalibration = false; calibrationLearned = false; $('calibrationBtn').disabled = true; editor.setCorners(calibrated.corners, 'automatic', 'detection'); status.set('correction', calibrated.applied ? `Bordes calibrados en ${result.elapsedMs} ms. El aprendizaje local está activo.` : `Bordes sugeridos en ${result.elapsedMs} ms. Corrige las cuatro esquinas si es necesario.`); }
-  catch (error) { automaticCorners = null; detectorMeta = { strategy: 'fallback', error: error.message }; manualCalibration = false; $('calibrationBtn').disabled = true; editor.setCorners(defaultCorners(sourceCanvas.width, sourceCanvas.height), 'manual', 'fallback'); status.set('correction', `${error.message} Usa las cuatro esquinas manuales.`); }
+  try { const result = await detectCardEdges(sourceCanvas, { timeoutMs: 5000 }); edgeCanvas = result.edgeCanvas; automaticCorners = result.corners.map(point => ({ ...point })); const calibrated = applyCalibration(result.corners, sourceCanvas.width, sourceCanvas.height, result.strategy); suggestedCorners = calibrated.corners.map(point => ({ ...point })); detectorMeta = { strategy: result.strategy, elapsedMs: result.elapsedMs, threshold: result.threshold, score: result.score, calibrationApplied: calibrated.applied, calibrationSamples: calibrated.samples }; manualCalibration = false; calibrationLearned = false; $('calibrationBtn').disabled = true; editor.setCorners(suggestedCorners, 'automatic', 'detection'); status.set('correction', calibrated.applied ? `Bordes calibrados en ${result.elapsedMs} ms. El aprendizaje local está activo.` : `Bordes sugeridos en ${result.elapsedMs} ms. Corrige las cuatro esquinas si es necesario.`); }
+  catch (error) { const fallback = defaultCorners(sourceCanvas.width, sourceCanvas.height); automaticCorners = suggestedCorners = fallback.map(point => ({ ...point })); detectorMeta = { strategy: 'fallback', error: error.message }; manualCalibration = false; calibrationLearned = false; $('calibrationBtn').disabled = true; editor.setCorners(fallback, 'manual', 'fallback'); status.set('correction', `${error.message} Usa las cuatro esquinas manuales.`); }
   finally { $('detectBtn').disabled = false; }
 }
 
 async function shareCalibration() {
   if (!sourceCanvas || !manualCalibration) return status.set('correction', 'Mueve al menos una esquina antes de compartir la calibración.');
+  if (!confirm('El paquete incluirá la fotografía completa de la cédula en dos capturas: bordes automáticos y bordes ajustados. También incluirá coordenadas y métricas técnicas. ¿Deseas continuar?')) return status.set('correction', 'Se canceló la creación del paquete con capturas.');
   rememberCalibration();
-  const report = buildCalibrationReport({ width: sourceCanvas.width, height: sourceCanvas.height, automaticCorners, correctedCorners: editor.getCorners(), detector: detectorMeta });
-  const outcome = await exportCalibration(report);
-  status.set('correction', outcome === 'shared' ? 'Calibración compartida sin fotografía ni datos personales.' : outcome === 'downloaded' ? 'Calibración descargada como JSON sin fotografía.' : 'Se canceló el envío de la calibración.');
+  const correctedCorners = editor.getCorners(), report = buildCalibrationReport({ width: sourceCanvas.width, height: sourceCanvas.height, detectorCorners: automaticCorners, automaticCorners: suggestedCorners, correctedCorners, detector: detectorMeta, input: inputMeta });
+  const outcome = await exportCalibrationPackage({ report, source: sourceCanvas, automaticCorners: suggestedCorners, correctedCorners });
+  status.set('correction', outcome === 'shared' ? 'Paquete compartido con las dos capturas y todos los datos técnicos.' : outcome === 'downloaded' ? 'Paquete ZIP descargado con las dos capturas y todos los datos técnicos.' : 'Se canceló el envío del paquete.');
 }
 
 async function normalizeImage() {
