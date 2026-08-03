@@ -13,14 +13,27 @@ fillFieldsV08 = function(result){
   }
 };
 
-// Carga la corrección 0.8.1 antes de permitir una nueva lectura.
-const readButton081=document.getElementById('readBtn');
-if(readButton081)readButton081.disabled=true;
+// Carga primero la corrección de nombres 0.8.1 y luego la alineación automática 0.9.0.
+const readButton090=document.getElementById('readBtn');
+if(readButton090)readButton090.disabled=true;
+
+function enableRead090(){if(readButton090)readButton090.disabled=false}
+function loadAutoAlign090(){
+  const align=document.createElement('script');
+  align.src='./auto-align-v09.js?v=090';
+  align.onload=enableRead090;
+  align.onerror=()=>{
+    enableRead090();
+    if(typeof setStatus==='function')setStatus('ocrStatus','No se cargó la alineación automática. Puedes usar el recorte manual como respaldo.','warn');
+  };
+  document.head.appendChild(align);
+}
+
 const correction081=document.createElement('script');
-correction081.src='./ocr-v081.js?v=082';
-correction081.onload=()=>{if(readButton081)readButton081.disabled=false};
+correction081.src='./ocr-v081.js?v=090';
+correction081.onload=loadAutoAlign090;
 correction081.onerror=()=>{
-  if(readButton081)readButton081.disabled=false;
+  loadAutoAlign090();
   if(typeof setStatus==='function')setStatus('ocrStatus','No se cargó la corrección de nombres. Recarga la página e inténtalo de nuevo.','warn');
 };
 document.head.appendChild(correction081);
