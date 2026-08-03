@@ -6,19 +6,22 @@
 <meta content="#0AAEF3" name="theme-color"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
-<meta content="JCF Registro" name="apple-mobile-web-app-title"/>
+<meta content="JCF Registro v0.9.1" name="apple-mobile-web-app-title"/>
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./icon.svg" rel="icon" type="image/svg+xml"/>
-<title>JCF Registro</title>
+<title>JCF Registro v0.9.1</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
-<link href="./style.css?v=081" rel="stylesheet"/>
-<link href="./lab-v08.css?v=081" rel="stylesheet"/>
+<link href="./style.css?v=091" rel="stylesheet"/>
+<link href="./lab-v08.css?v=091" rel="stylesheet"/>
+<style>
+.hero-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.hero-version{background:#fff;color:#087cb1;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;white-space:nowrap}.align-panel-v091{margin-top:12px;border:1px solid #bde6f8;background:#f5fcff;border-radius:15px;padding:12px;display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start}.align-panel-v091[data-state="success"]{border-color:#91d8ba;background:#f2fff9}.align-panel-v091[data-state="error"]{border-color:#f2c36b;background:#fff9ed}.align-panel-v091[data-state="working"]{border-color:#79cdf1;background:#eefaff}.align-icon-v091{font-size:23px;line-height:1}.align-copy-v091{display:grid;gap:3px}.align-copy-v091 strong{font-size:14px}.align-copy-v091 small{font-size:12px;color:#667085;line-height:1.4}.align-panel-v091 .btn{grid-column:1/-1;margin-top:2px}.version-watermark-v091{font-size:11px;color:#667085;text-align:center;margin:7px 0 0;font-weight:800}
+</style>
 </head>
 <body>
 <main class="app">
 <section class="hero">
   <div class="badges"><span class="badge"><span class="dot"></span>Disponible por Internet</span><span class="badge">Sin guardar fotos</span></div>
-  <h1>JCF Registro</h1>
+  <div class="hero-title-row"><h1>JCF Registro v0.9.1</h1><span class="hero-version" id="visibleVersionV091">Versión 0.9.1</span></div>
   <p>Fotografía o selecciona una cédula dominicana, revisa los datos extraídos y registra a la familia.</p>
 </section>
 <section class="card" style="display:none">
@@ -33,9 +36,15 @@
     <input accept="image/*" capture="environment" id="cedulaCamara" style="display:none" type="file"/><input accept="image/*" id="cedulaFoto" style="display:none" type="file"/>
   </div>
   <label class="lab-switch"><input id="labModeToggle" type="checkbox" checked/><span><strong>🧪 Modo laboratorio</strong><small>Hace más comprobaciones y genera un informe técnico completo. Puede tardar unos segundos más.</small></span></label>
+  <div class="align-panel-v091" id="alignPanelV091" data-state="working">
+    <span class="align-icon-v091" id="alignIconV091">⏳</span>
+    <span class="align-copy-v091"><strong id="alignTitleV091">Cargando detector automático…</strong><small id="alignDetailV091">La versión y el estado quedarán visibles aquí.</small></span>
+    <button class="btn light" id="autoAlignBtnV09" type="button" disabled>✨ Detectar bordes automáticamente</button>
+  </div>
+  <p class="version-watermark-v091">Motor visible: JCF Registro 0.9.1 · Alineación 0.9.0</p>
   <div id="editorWrap">
     <div class="canvas-wrap"><canvas id="cropCanvas"></canvas></div>
-    <p class="editor-help">Mueve el recuadro azul para dejar solamente la cédula. Arrastra las esquinas para ajustarlo.</p>
+    <p class="editor-help">Espera el contorno verde de alineación automática. Usa el recuadro azul solamente como respaldo.</p>
     <div class="button-row"><button class="btn light mini" id="resetCrop" type="button">Centrar recorte</button><button class="btn light mini" id="rotateImage" type="button">Girar foto</button></div>
     <button class="btn primary" id="readBtn" type="button">Leer cédula</button>
   </div>
@@ -85,5 +94,16 @@
 </section>
 <section class="card"><details><summary>Privacidad y límites</summary><p class="legal">Esta herramienta copia texto visible de una cédula; no confirma que el documento sea auténtico ni consulta a la Junta Central Electoral. Revisa cada dato antes de guardarlo. No uses la información para fines distintos a los autorizados.</p></details></section>
 </main>
-<script defer src="./config.js?v=081"></script><script defer src="./crop.js?v=081"></script><script defer src="./ocr.js?v=081"></script><script defer src="./ocr-v07.js?v=081"></script><script defer src="./debug-extra.js?v=081"></script><script defer src="./ocr-v08.js?v=081"></script><script defer src="./lab-v08.js?v=081"></script><script defer src="./lab-v08-fix.js?v=081"></script><script defer src="./records.js?v=081"></script>
+<script defer src="./config.js?v=091"></script>
+<script defer src="./crop.js?v=091"></script>
+<script defer src="./ocr.js?v=091"></script>
+<script defer src="./ocr-v07.js?v=091"></script>
+<script defer src="./debug-extra.js?v=091"></script>
+<script defer src="./ocr-v08.js?v=091"></script>
+<script defer src="./lab-v08.js?v=091"></script>
+<script defer src="./lab-v08-fix.js?v=091"></script>
+<script defer src="./ocr-v081.js?v=091"></script>
+<script defer src="./auto-align-v09.js?v=091"></script>
+<script defer src="./auto-align-ui-v091.js?v=091"></script>
+<script defer src="./records.js?v=091"></script>
 </body></html>
