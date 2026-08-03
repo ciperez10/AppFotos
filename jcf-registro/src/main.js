@@ -11,6 +11,7 @@ import { histogramCanvas, imageQuality } from './image/quality.js';
 import { LocalOcrEngine } from './ocr/worker.js';
 import { buildTechnicalReport } from './debug/report.js';
 import { exportDebugPackage } from './debug/export.js';
+import { buildCalibrationReport, exportCalibration } from './debug/calibration.js';
 import { renderLabVisuals, renderPassTable } from './debug/visuals.js';
 import { clearRecords, deleteRecord, listRecords, maskCedula, putRecord } from './storage/records.js';
 import { downloadCsv } from './storage/csv.js';
@@ -18,13 +19,15 @@ import { downloadCsv } from './storage/csv.js';
 const $ = id => document.getElementById(id);
 const editorCanvas = $('editorCanvas'), normalizedDisplay = $('normalizedCanvas');
 const status = createStatusController({ panel: $('statusPanel'), icon: $('statusIcon'), text: $('statusText'), detail: $('statusDetail') });
-const editor = new CropEditor(editorCanvas, (_, mode) => { $('alignmentMode').textContent = mode === 'automatic' ? 'Alineación automática' : 'Ajuste manual'; if (normalizedCanvas) { clearCanvas(normalizedCanvas); normalizedCanvas = null; $('normalizedSection').hidden = true; } });
+let automaticCorners = null, detectorMeta = {}, manualCalibration = false;
+const editor = new CropEditor(editorCanvas, (_, mode, reason) => { $('alignmentMode').textContent = mode === 'automatic' ? 'Alineación automática' : 'Ajuste manual'; if (reason === 'drag') { manualCalibration = true; $('calibrationBtn').disabled = false; } if (normalizedCanvas) { clearCanvas(normalizedCanvas); normalizedCanvas = null; $('normalizedSection').hidden = true; } });
 let sourceCanvas = null, normalizedCanvas = null, edgeCanvas = null, currentResult = null, ocrEngine = null, analysisController = null, draftChildren = [], inputMeta = { source: '', size: 0, type: '' };
 
 function setVersion() { document.title = APP_LABEL; $('appTitle').textContent = APP_LABEL; $('headerVersion').textContent = `v${VERSION}`; $('buildLabel').textContent = `Compilación ${BUILD_ID}`; $('statusVersion').textContent = APP_LABEL; $('footerVersion').textContent = `${APP_LABEL} · compilación ${BUILD_ID}`; }
 function copyCanvas(source, target) { target.width = source.width; target.height = source.height; target.getContext('2d').drawImage(source, 0, 0); }
 function resetReading() { currentResult = null; $('fieldWarnings').replaceChildren(); $('labSection').hidden = true; }
-function discardImage({ keepStatus = false } = {}) { analysisController?.abort(); ocrEngine?.cancel(); ocrEngine = null; clearCanvas(sourceCanvas); clearCanvas(normalizedCanvas); clearCanvas(edgeCanvas); sourceCanvas = normalizedCanvas = edgeCanvas = null; editor.destroy(); $('editorSection').hidden = true; $('normalizedSection').hidden = true; $('labSection').hidden = true; resetReading(); inputMeta = { source: '', size: 0, type: '' }; if (!keepStatus) status.set('idle', `Versión visible: ${APP_LABEL}`); }
+function resetCalibration() { automaticCorners = null; detectorMeta = {}; manualCalibration = false; $('calibrationBtn').disabled = true; }
+function discardImage({ keepStatus = false } = {}) { analysisController?.abort(); ocrEngine?.cancel(); ocrEngine = null; clearCanvas(sourceCanvas); clearCanvas(normalizedCanvas); clearCanvas(edgeCanvas); sourceCanvas = normalizedCanvas = edgeCanvas = null; editor.destroy(); resetCalibration(); $('editorSection').hidden = true; $('normalizedSection').hidden = true; $('labSection').hidden = true; resetReading(); inputMeta = { source: '', size: 0, type: '' }; if (!keepStatus) status.set('idle', `Versión visible: ${APP_LABEL}`); }
 
 async function loadImage(file, source) {
   if (!file) return; discardImage({ keepStatus: true }); status.set('preparing', `${source === 'camera' ? 'Cámara' : 'Fotos'} · ${Math.round(file.size / 1024)} KB`);
@@ -34,9 +37,16 @@ async function loadImage(file, source) {
 
 async function runDetection() {
   if (!sourceCanvas) return; status.set('detecting', 'Máximo 5 segundos; el ajuste manual siempre queda disponible.'); $('detectBtn').disabled = true;
-  try { const result = await detectCardEdges(sourceCanvas, { timeoutMs: 5000 }); edgeCanvas = result.edgeCanvas; editor.setCorners(result.corners, 'automatic'); status.set('correction', `Bordes sugeridos en ${result.elapsedMs} ms. Corrige las cuatro esquinas si es necesario.`); }
-  catch (error) { editor.setCorners(defaultCorners(sourceCanvas.width, sourceCanvas.height), 'manual'); status.set('correction', `${error.message} Usa las cuatro esquinas manuales.`); }
+  try { const result = await detectCardEdges(sourceCanvas, { timeoutMs: 5000 }); edgeCanvas = result.edgeCanvas; automaticCorners = result.corners.map(point => ({ ...point })); detectorMeta = { strategy: result.strategy, elapsedMs: result.elapsedMs, threshold: result.threshold, score: result.score }; manualCalibration = false; $('calibrationBtn').disabled = true; editor.setCorners(result.corners, 'automatic', 'detection'); status.set('correction', `Bordes sugeridos en ${result.elapsedMs} ms. Corrige las cuatro esquinas si es necesario.`); }
+  catch (error) { automaticCorners = null; detectorMeta = { strategy: 'fallback', error: error.message }; manualCalibration = false; $('calibrationBtn').disabled = true; editor.setCorners(defaultCorners(sourceCanvas.width, sourceCanvas.height), 'manual', 'fallback'); status.set('correction', `${error.message} Usa las cuatro esquinas manuales.`); }
   finally { $('detectBtn').disabled = false; }
+}
+
+async function shareCalibration() {
+  if (!sourceCanvas || !manualCalibration) return status.set('correction', 'Mueve al menos una esquina antes de compartir la calibración.');
+  const report = buildCalibrationReport({ width: sourceCanvas.width, height: sourceCanvas.height, automaticCorners, correctedCorners: editor.getCorners(), detector: detectorMeta });
+  const outcome = await exportCalibration(report);
+  status.set('correction', outcome === 'shared' ? 'Calibración compartida sin fotografía ni datos personales.' : outcome === 'downloaded' ? 'Calibración descargada como JSON sin fotografía.' : 'Se canceló el envío de la calibración.');
 }
 
 async function normalizeImage() {
@@ -85,7 +95,8 @@ async function createDebugPackage() {
 function bindEvents() {
   $('cameraBtn').addEventListener('click', () => $('cameraInput').click()); $('galleryBtn').addEventListener('click', () => $('galleryInput').click());
   $('cameraInput').addEventListener('change', event => { loadImage(event.target.files[0], 'camera'); event.target.value = ''; }); $('galleryInput').addEventListener('change', event => { loadImage(event.target.files[0], 'gallery'); event.target.value = ''; });
-  $('detectBtn').addEventListener('click', runDetection); $('resetCornersBtn').addEventListener('click', () => editor.reset()); $('rotateBtn').addEventListener('click', () => { if (!sourceCanvas) return; const previous = sourceCanvas; sourceCanvas = rotateCanvas(previous); clearCanvas(previous); editor.setSource(sourceCanvas); edgeCanvas = null; status.set('correction', 'Imagen girada. Ajusta o vuelve a detectar los bordes.'); });
+  $('detectBtn').addEventListener('click', runDetection); $('resetCornersBtn').addEventListener('click', () => { editor.reset(); manualCalibration = false; $('calibrationBtn').disabled = true; }); $('rotateBtn').addEventListener('click', () => { if (!sourceCanvas) return; const previous = sourceCanvas; sourceCanvas = rotateCanvas(previous); clearCanvas(previous); editor.setSource(sourceCanvas); edgeCanvas = null; resetCalibration(); status.set('correction', 'Imagen girada. Ajusta o vuelve a detectar los bordes.'); });
+  $('calibrationBtn').addEventListener('click', shareCalibration);
   $('normalizeBtn').addEventListener('click', normalizeImage); $('readBtn').addEventListener('click', readCard); $('cancelBtn').addEventListener('click', () => { analysisController?.abort(); ocrEngine?.cancel(); }); $('discardImageBtn').addEventListener('click', () => discardImage());
   $('labMode').addEventListener('change', event => { $('modeDescription').textContent = event.target.checked ? 'Laboratorio · más pases, imágenes y métricas' : 'Normal · lectura más rápida'; });
   $('addChildBtn').addEventListener('click', addChild); $('saveRecordBtn').addEventListener('click', saveRecord); $('debugPackageBtn').addEventListener('click', createDebugPackage);
