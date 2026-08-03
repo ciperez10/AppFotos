@@ -2,21 +2,43 @@ import { defaultCorners } from '../image/edge-detection.js';
 
 const LABELS = ['1', '2', '3', '4'];
 
+export function containMetrics(sourceWidth, sourceHeight, boxWidth, boxHeight) {
+  const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
+  const width = sourceWidth * scale, height = sourceHeight * scale;
+  return { left: (boxWidth - width) / 2, top: (boxHeight - height) / 2, width, height };
+}
+
+export function pointInContainedCanvas(clientX, clientY, rect, sourceWidth, sourceHeight) {
+  const content = containMetrics(sourceWidth, sourceHeight, rect.width, rect.height);
+  return {
+    x: (clientX - rect.left - content.left) * sourceWidth / content.width,
+    y: (clientY - rect.top - content.top) * sourceHeight / content.height,
+    content
+  };
+}
+
 export class CropEditor {
   constructor(canvas, onChange = () => {}) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.onChange = onChange; this.source = null; this.corners = []; this.dragIndex = -1;
-    canvas.addEventListener('pointerdown', event => this.pointerDown(event));
-    canvas.addEventListener('pointermove', event => this.pointerMove(event));
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown', event => this.pointerDown(event), { passive: false });
+    canvas.addEventListener('pointermove', event => this.pointerMove(event), { passive: false });
     ['pointerup', 'pointercancel'].forEach(type => canvas.addEventListener(type, event => this.pointerUp(event)));
+    canvas.addEventListener('lostpointercapture', () => { this.dragIndex = -1; });
   }
   setSource(source) { this.source = source; this.canvas.width = source.width; this.canvas.height = source.height; this.reset(); }
-  setCorners(corners, mode = 'manual') { this.corners = corners.map(p => ({ ...p })); this.mode = mode; this.draw(); this.onChange(this.getCorners(), mode); }
-  reset() { if (this.source) this.setCorners(defaultCorners(this.source.width, this.source.height), 'manual'); }
+  setCorners(corners, mode = 'manual', reason = 'programmatic') { this.corners = corners.map(p => ({ ...p })); this.mode = mode; this.draw(); this.onChange(this.getCorners(), mode, reason); }
+  reset() { if (this.source) this.setCorners(defaultCorners(this.source.width, this.source.height), 'manual', 'reset'); }
   getCorners() { return this.corners.map(p => ({ ...p })); }
-  point(event) { const rect = this.canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * this.canvas.width / rect.width, y: (event.clientY - rect.top) * this.canvas.height / rect.height }; }
-  pointerDown(event) { const p = this.point(event), radius = Math.max(28, this.canvas.width * .035); let best = -1, distance = Infinity; this.corners.forEach((corner, i) => { const d = Math.hypot(p.x - corner.x, p.y - corner.y); if (d < distance && d < radius) { best = i; distance = d; } }); if (best >= 0) { this.dragIndex = best; this.canvas.setPointerCapture(event.pointerId); event.preventDefault(); } }
-  pointerMove(event) { if (this.dragIndex < 0) return; const p = this.point(event), margin = 2; this.corners[this.dragIndex] = { x: Math.max(margin, Math.min(this.canvas.width - margin, p.x)), y: Math.max(margin, Math.min(this.canvas.height - margin, p.y)) }; this.mode = 'manual'; this.draw(); this.onChange(this.getCorners(), this.mode); event.preventDefault(); }
-  pointerUp(event) { if (this.dragIndex >= 0 && this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId); this.dragIndex = -1; }
+  point(event) { return pointInContainedCanvas(event.clientX, event.clientY, this.canvas.getBoundingClientRect(), this.canvas.width, this.canvas.height); }
+  pointerDown(event) {
+    const p = this.point(event), cssRadius = event.pointerType === 'touch' ? 58 : 38, radius = Math.max(28, cssRadius * this.canvas.width / p.content.width);
+    let best = -1, distance = Infinity;
+    this.corners.forEach((corner, i) => { const d = Math.hypot(p.x - corner.x, p.y - corner.y); if (d < distance && d < radius) { best = i; distance = d; } });
+    if (best >= 0) { this.dragIndex = best; try { this.canvas.setPointerCapture?.(event.pointerId); } catch {} event.preventDefault(); }
+  }
+  pointerMove(event) { if (this.dragIndex < 0) return; const p = this.point(event), margin = 2; this.corners[this.dragIndex] = { x: Math.max(margin, Math.min(this.canvas.width - margin, p.x)), y: Math.max(margin, Math.min(this.canvas.height - margin, p.y)) }; this.mode = 'manual'; this.draw(); this.onChange(this.getCorners(), this.mode, 'drag'); event.preventDefault(); }
+  pointerUp(event) { if (this.dragIndex >= 0 && this.canvas.hasPointerCapture?.(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId); this.dragIndex = -1; }
   draw() {
     if (!this.source) return; const { ctx, canvas, corners } = this; ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(this.source, 0, 0);
     ctx.save(); ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.moveTo(corners[0].x, corners[0].y); corners.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.fill('evenodd');

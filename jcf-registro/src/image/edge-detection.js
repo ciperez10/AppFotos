@@ -83,70 +83,33 @@ export function findCardRectangle(strength, gray, width, height) {
       for (let y = gridY; y + h < height - gridY; y += gridY) {
         for (let x = gridX; x + w < width - gridX; x += gridX) {
           const candidate = { x, y, w, h }, score = scoreRectangle(candidate, edgeSum, graySum, width, height);
-          if (!best || score > best.score) best = { ...candidate, score };
-        }
-      }
-    }
-  }
-  return best && best.score >= 32 ? best : null;
+          if (!best || score >.=��h��춻�q�^ument('strong'), meta = document.createElement('p'), button = document.createElement('button'); strong.textContent = child.nombre; meta.textContent = [child.edad ? `${child.edad} años` : child.fechaNacimiento, child.actividad].filter(Boolean).join(' · '); button.className = 'icon-button'; button.type = 'button'; button.textContent = 'Quitar'; button.addEventListener('click', () => { draftChildren.splice(index, 1); renderChildren(); }); copy.append(strong, meta); item.append(copy, button); list.append(item); }); }
+function showSave(message, error = false) { $('saveMessage').textContent = message; $('saveMessage').style.color = error ? '#b42318' : '#087a55'; }
+
+async function saveRecord() {
+  const tutor = readTutor(); if (!tutor.nombres || !tutor.apellidos) return showSave('Completa nombres y apellidos del tutor.', true); if (!draftChildren.length) return showSave('Agrega al menos un beneficiario.', true);
+  await putRecord({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), tutor, children: draftChildren.map(child => ({ ...child })) }); draftChildren = []; renderChildren(); $('tutorForm').reset(); showSave('Registro guardado como texto en este dispositivo.'); discardImage({ keepStatus: true }); status.set('complete', 'Registro guardado y fotografía eliminada de la memoria.'); await renderRecords();
+}
+async function renderRecords() { const records = (await listRecords()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); $('recordCount').textContent = records.length; const list = $('recordsList'); list.replaceChildren(); if (!records.length) { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'No hay registros.'; list.append(empty); return records; } records.forEach(record => { const item = document.createElement('div'); item.className = 'record-item'; const copy = document.createElement('div'), strong = document.createElement('strong'), meta = document.createElement('p'), button = document.createElement('button'); strong.textContent = `${record.tutor.nombres} ${record.tutor.apellidos}`; meta.textContent = `${maskCedula(record.tutor.cedula)} · ${record.children.length} beneficiario(s)`; button.className = 'icon-button'; button.type = 'button'; button.textContent = 'Borrar'; button.addEventListener('click', async () => { await deleteRecord(record.id); await renderRecords(); }); copy.append(strong, meta); item.append(copy, button); list.append(item); }); return records; }
+
+async function createDebugPackage() {
+  if (!currentResult || !normalizedCanvas) return status.set('recoverable', 'Realiza una lectura en modo laboratorio antes de generar el paquete.'); if (!confirm('La imagen normalizada contiene información personal. ¿Deseas crear y compartir o descargar el paquete técnico ahora?')) return;
+  const quality = imageQuality(normalizedCanvas), corrected = readTutor(), report = buildTechnicalReport({ result: currentResult, corrected, quality, corners: editor.getCorners(), input: inputMeta, note: $('debugNote').value }); const outcome = await exportDebugPackage({ normalized: normalizedCanvas, result: currentResult, report }); status.set('complete', outcome === 'shared' ? 'Paquete técnico compartido.' : outcome === 'downloaded' ? 'Paquete técnico descargado.' : 'Compartir paquete cancelado.');
 }
 
-export function defaultCorners(width, height) {
-  const w = Math.min(width * .86, height * .7 * CARD_ASPECT), h = w / CARD_ASPECT;
-  const cx = width / 2, cy = height * (height > width * 1.15 ? .56 : .5);
-  const x = Math.max(2, cx - w / 2), y = Math.max(2, Math.min(height - h - 2, cy - h / 2));
-  return [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+function bindEvents() {
+  $('cameraBtn').addEventListener('click', () => $('cameraInput').click()); $('galleryBtn').addEventListener('click', () => $('galleryInput').click());
+  $('cameraInput').addEventListener('change', event => { loadImage(event.target.files[0], 'camera'); event.target.value = ''; }); $('galleryInput').addEventListener('change', event => { loadImage(event.target.files[0], 'gallery'); event.target.value = ''; });
+  $('detectBtn').addEventListener('click', runDetection); $('resetCornersBtn').addEventListener('click', () => { editor.reset(); manualCalibration = false; $('calibrationBtn').disabled = true; }); $('rotateBtn').addEventListener('click', () => { if (!sourceCanvas) return; const previous = sourceCanvas; sourceCanvas = rotateCanvas(previous); clearCanvas(previous); editor.setSource(sourceCanvas); edgeCanvas = null; resetCalibration(); status.set('correction', 'Imagen girada. Ajusta o vuelve a detectar los bordes.'); });
+  $('calibrationBtn').addEventListener('click', shareCalibration);
+  $('normalizeBtn').addEventListener('click', normalizeImage); $('readBtn').addEventListener('click', readCard); $('cancelBtn').addEventListener('click', () => { analysisController?.abort(); ocrEngine?.cancel(); }); $('discardImageBtn').addEventListener('click', () => discardImage());
+  $('labMode').addEventListener('change', event => { $('modeDescription').textContent = event.target.checked ? 'Laboratorio · más pases, imágenes y métricas' : 'Normal · lectura más rápida'; });
+  $('addChildBtn').addEventListener('click', addChild); $('saveRecordBtn').addEventListener('click', saveRecord); $('debugPackageBtn').addEventListener('click', createDebugPackage);
+  $('exportCsvBtn').addEventListener('click', async () => { const records = await listRecords(); if (records.length) downloadCsv(records); else showSave('No hay registros para exportar.', true); });
+  $('clearRecordsBtn').addEventListener('click', async () => { if (confirm('¿Borrar todos los registros de texto guardados en este dispositivo?')) { await clearRecords(); await renderRecords(); } });
+  $('checkUpdateBtn').addEventListener('click', async () => { status.set('preparing', 'Buscando la compilación más reciente…'); if ('serviceWorker' in navigator) for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister(); if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('jcf-')) await caches.delete(key); location.replace(`${location.pathname}?actualizar=${Date.now()}`); });
+  window.addEventListener('beforeunload', () => discardImage({ keepStatus: true }));
 }
 
-function ratioOf(corners) {
-  const top = Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y), bottom = Math.hypot(corners[2].x - corners[3].x, corners[2].y - corners[3].y);
-  const left = Math.hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y), right = Math.hypot(corners[2].x - corners[1].x, corners[2].y - corners[1].y);
-  return ((top + bottom) / 2) / ((left + right) / 2);
-}
-
-export async function detectCardEdges(sourceCanvas, { signal, timeoutMs = 5000 } = {}) {
-  const started = performance.now(), maxWidth = 420, scale = Math.min(1, maxWidth / sourceCanvas.width);
-  const width = Math.max(120, Math.round(sourceCanvas.width * scale)), height = Math.max(80, Math.round(sourceCanvas.height * scale));
-  const work = document.createElement('canvas'); work.width = width; work.height = height;
-  const ctx = work.getContext('2d', { willReadFrequently: true }); ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  const image = ctx.getImageData(0, 0, width, height), gray = new Uint8Array(width * height), strength = new Float32Array(width * height), magnitudes = [];
-  for (let i = 0; i < gray.length; i += 1) gray[i] = image.data[i * 4] * .299 + image.data[i * 4 + 1] * .587 + image.data[i * 4 + 2] * .114;
-  for (let y = 1; y < height - 1; y += 1) {
-    if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
-    if (performance.now() - started > timeoutMs) throw new Error('La detección agotó el tiempo disponible.');
-    for (let x = 1; x < width - 1; x += 1) {
-      const i = y * width + x;
-      const gx = -gray[i - width - 1] - 2 * gray[i - 1] - gray[i + width - 1] + gray[i - width + 1] + 2 * gray[i + 1] + gray[i + width + 1];
-      const gy = -gray[i - width - 1] - 2 * gray[i - width] - gray[i - width + 1] + gray[i + width - 1] + 2 * gray[i + width] + gray[i + width + 1];
-      const value = Math.min(255, Math.hypot(gx, gy) / 4); strength[i] = value; magnitudes.push(value);
-    }
-    if (y % 45 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-  }
-  magnitudes.sort((a, b) => a - b);
-  const threshold = Math.max(38, magnitudes[Math.floor(magnitudes.length * .88)] || 70), edge = ctx.createImageData(width, height), samples = [];
-  let sampleCursor = 0;
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const i = y * width + x, value = strength[i], di = i * 4, visible = value > threshold;
-      edge.data[di] = edge.data[di + 1] = edge.data[di + 2] = visible ? 255 : 0; edge.data[di + 3] = 255;
-      if (visible && x > width * .02 && x < width * .98 && y > height * .02 && y < height * .98 && sampleCursor++ % 3 === 0) samples.push({ x, y });
-    }
-    if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-  }
-  ctx.putImageData(edge, 0, 0);
-  if (performance.now() - started > timeoutMs) throw new Error('La detección agotó el tiempo disponible.');
-
-  let cornersSmall = null;
-  if (samples.length >= 40) {
-    const hullCorners = extremes(convexHull(samples)), unique = new Set(hullCorners.map(p => `${p.x},${p.y}`));
-    const ratio = unique.size === 4 ? ratioOf(hullCorners) : 0, area = polygonArea(hullCorners) / (width * height);
-    if (ratio >= 1.2 && ratio <= 2.05 && area >= .12 && area <= .76) cornersSmall = hullCorners;
-  }
-  if (!cornersSmall) {
-    const rect = findCardRectangle(strength, gray, width, height);
-    if (rect) cornersSmall = [{ x: rect.x, y: rect.y }, { x: rect.x + rect.w, y: rect.y }, { x: rect.x + rect.w, y: rect.y + rect.h }, { x: rect.x, y: rect.y + rect.h }];
-  }
-  if (!cornersSmall) throw new Error('No se encontró un contorno de cédula confiable.');
-  const corners = cornersSmall.map(p => ({ x: p.x / scale, y: p.y / scale }));
-  return { corners, edgeCanvas: work, threshold: Math.round(threshold), elapsedMs: Math.round(performance.now() - started) };
-}
+async function boot() { setVersion(); bindEvents(); if ('serviceWorker' in navigator) { const registrations = await navigator.serviceWorker.getRegistrations(); registrations.filter(registration => registration.scope.includes('/jcf-registro/')).forEach(registration => registration.unregister()); } await renderRecords(); status.set('idle', `Versión visible: ${APP_LABEL} · compilación ${BUILD_ID}`); }
+boot().catch(error => status.set('recoverable', error.message));
