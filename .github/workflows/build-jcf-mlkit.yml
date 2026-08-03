@@ -75,6 +75,7 @@ jobs:
           plist = root / 'ios/Runner/Info.plist'
           tree = ET.parse(plist)
           dict_node = tree.getroot().find('dict')
+
           def set_key(key, value):
               children = list(dict_node)
               for i, child in enumerate(children):
@@ -85,27 +86,28 @@ jobs:
               key_node.text = key
               value_node = ET.SubElement(dict_node, 'string')
               value_node.text = value
+
           set_key('CFBundleDisplayName', 'JCF Registro')
           set_key('NSCameraUsageDescription', 'JCF Registro usa la cámara para leer la cédula. La foto no se almacena.')
           set_key('NSPhotoLibraryUsageDescription', 'JCF Registro permite seleccionar una foto de cédula para leer sus datos. La foto no se almacena.')
           tree.write(plist, encoding='utf-8', xml_declaration=True)
 
-          podfile = root / 'ios/Podfile'
-          pod = podfile.read_text()
-          if re.search(r"^#?\s*platform :ios,", pod, flags=re.M):
-              pod = re.sub(r"^#?\s*platform :ios,\s*'[^']+'", "platform :ios, '15.5'", pod, count=1, flags=re.M)
-          else:
-              pod = "platform :ios, '15.5'\n" + pod
-          if '$iOSVersion' not in pod:
-              pod = pod.replace(
-                  'post_install do |installer|',
-                  "$iOSVersion = '15.5'\n\npost_install do |installer|\n  installer.pods_project.build_configurations.each do |config|\n    config.build_settings[\"EXCLUDED_ARCHS[sdk=*]\"] = \"armv7\"\n    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion\n  end"
-              )
-              pod = pod.replace(
-                  'flutter_additional_ios_build_settings(target)',
-                  "flutter_additional_ios_build_settings(target)\n    target.build_configurations.each do |config|\n      if Gem::Version.new($iOSVersion) > Gem::Version.new(config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'])\n        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion\n      end\n    end"
-              )
-          podfile.write_text(pod)
+          project = root / 'ios/Runner.xcodeproj/project.pbxproj'
+          if project.exists():
+              text = project.read_text()
+              text = re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.5;', text)
+              project.write_text(text)
+
+          framework_info = root / 'ios/Flutter/AppFrameworkInfo.plist'
+          if framework_info.exists():
+              tree = ET.parse(framework_info)
+              root_node = tree.getroot().find('dict')
+              children = list(root_node)
+              for i, child in enumerate(children):
+                  if child.tag == 'key' and child.text == 'MinimumOSVersion':
+                      children[i + 1].text = '15.5'
+                      break
+              tree.write(framework_info, encoding='utf-8', xml_declaration=True)
           PY
 
       - name: Descargar dependencias
