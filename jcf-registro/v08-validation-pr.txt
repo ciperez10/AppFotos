@@ -1,0 +1,1 @@
+Validación por pull request de JCF Registro Web 0.8.0
