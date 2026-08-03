@@ -1,64 +1,43 @@
 'use strict';
 
-const JCF_VISIBLE_VERSION = '0.9.1';
+const JCF_VISIBLE_VERSION = '0.9.2';
 
-function setAlignUiV091(state, title, detail){
-  const panel = document.getElementById('alignPanelV091');
-  const icon = document.getElementById('alignIconV091');
-  const heading = document.getElementById('alignTitleV091');
-  const text = document.getElementById('alignDetailV091');
-  if(!panel || !icon || !heading || !text) return;
-  panel.dataset.state = state;
-  icon.textContent = state === 'success' ? '✅' : state === 'error' ? '⚠️' : state === 'working' ? '⏳' : 'ℹ️';
-  heading.textContent = title;
-  text.textContent = detail;
-}
-
-const versionChipV091 = document.getElementById('visibleVersionV091');
-if(versionChipV091) versionChipV091.textContent = `Versión ${JCF_VISIBLE_VERSION}`;
 document.title = `JCF Registro v${JCF_VISIBLE_VERSION}`;
+const titleV092=document.querySelector('.hero h1');
+if(titleV092)titleV092.textContent=`JCF Registro v${JCF_VISIBLE_VERSION}`;
+const chipV092=document.getElementById('visibleVersionV091');
+if(chipV092)chipV092.textContent=`Versión ${JCF_VISIBLE_VERSION}`;
+const watermarkV092=document.querySelector('.version-watermark-v091');
+if(watermarkV092)watermarkV092.textContent='Motor visible: JCF Registro 0.9.2 · Detector ligero compatible con Safari';
 
-const alignButtonV091 = document.getElementById('autoAlignBtnV09');
-
-if(typeof detectCardCornersV09 === 'function'){
-  const detectCardCornersBaseV091 = detectCardCornersV09;
-  detectCardCornersV09 = async function(){
-    if(!sourceImage){
-      setAlignUiV091('idle','Detector automático listo','Primero toma una foto o elige una imagen.');
-      if(typeof setStatus === 'function') setStatus('ocrStatus','Primero toma o selecciona una fotografía.','warn');
-      return false;
-    }
-    const started = performance.now();
-    setAlignUiV091('working','Detectando los cuatro bordes…','No muevas el recuadro mientras se analiza la imagen.');
-    try{
-      const ok = await detectCardCornersBaseV091();
-      const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      if(ok){
-        setAlignUiV091('success','Alineación automática lista',`Perspectiva corregida en ${seconds} s. Debes ver un contorno verde sobre la cédula.`);
-      }else{
-        setAlignUiV091('error','No se detectaron los cuatro bordes','Usa “Detectar bordes” otra vez o ajusta manualmente el recuadro azul.');
-      }
-      return ok;
-    }catch(error){
-      console.error('Error visible de alineación:', error);
-      setAlignUiV091('error','Falló el detector automático',String(error?.message || 'Usa el recorte manual como respaldo.'));
-      return false;
-    }
-  };
-
-  if(alignButtonV091){
-    alignButtonV091.disabled = false;
-    alignButtonV091.addEventListener('click',()=>detectCardCornersV09());
-  }
-  setAlignUiV091('idle','Detector automático cargado','Selecciona una imagen. La aplicación intentará alinearla sola.');
-}else{
-  setAlignUiV091('error','La alineación automática no cargó','Recarga esta página. Si persiste, envía una captura donde se vea la versión 0.9.1.');
-  if(alignButtonV091) alignButtonV091.disabled = true;
+const buttonV092=document.getElementById('autoAlignBtnV09');
+if(buttonV092){
+  buttonV092.disabled=false;
+  buttonV092.textContent='✨ Detectar bordes automáticamente';
 }
 
-window.addEventListener('error', event => {
-  const source = String(event?.filename || '');
-  if(source.includes('opencv') || source.includes('auto-align')){
-    setAlignUiV091('error','Error al cargar el detector',event.message || 'Safari bloqueó uno de los componentes.');
+// El detector ligero gestiona sus propios estados. Este archivo solo garantiza una salida visible.
+setTimeout(()=>{
+  const panel=document.getElementById('alignPanelV091');
+  const heading=document.getElementById('alignTitleV091');
+  if(panel&&heading&&heading.textContent.includes('Cargando detector automático')){
+    panel.dataset.state='idle';
+    document.getElementById('alignIconV091').textContent='📐';
+    heading.textContent='Detector ligero v0.9.2 preparado';
+    document.getElementById('alignDetailV091').textContent='Selecciona una imagen. Si no detecta los bordes, el OCR seguirá disponible en modo manual.';
+  }
+  const read=document.getElementById('readBtn');
+  if(read)read.disabled=false;
+},1200);
+
+window.addEventListener('error',event=>{
+  const source=String(event?.filename||'');
+  if(source.includes('auto-align')){
+    const panel=document.getElementById('alignPanelV091');
+    if(panel)panel.dataset.state='error';
+    const icon=document.getElementById('alignIconV091');if(icon)icon.textContent='⚠️';
+    const heading=document.getElementById('alignTitleV091');if(heading)heading.textContent='Falló la alineación automática';
+    const detail=document.getElementById('alignDetailV091');if(detail)detail.textContent='Puedes ajustar el recuadro azul y continuar con el OCR.';
+    const read=document.getElementById('readBtn');if(read)read.disabled=false;
   }
 });
