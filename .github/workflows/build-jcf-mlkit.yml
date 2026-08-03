@@ -4,14 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'jcf-registro-mlkit/**'
-      - '.github/workflows/build-jcf-mlkit.yml'
+    paths: ['jcf-registro-mlkit/**', '.github/workflows/build-jcf-mlkit.yml']
   pull_request:
     branches: [main]
-    paths:
-      - 'jcf-registro-mlkit/**'
-      - '.github/workflows/build-jcf-mlkit.yml'
+    paths: ['jcf-registro-mlkit/**', '.github/workflows/build-jcf-mlkit.yml']
 
 permissions:
   contents: read
@@ -21,17 +17,14 @@ jobs:
     name: APK Android y código iOS
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar repositorio
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configurar Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
@@ -46,8 +39,9 @@ jobs:
           cp "$GITHUB_WORKSPACE/jcf-registro-mlkit/pubspec.yaml" pubspec.yaml
           cp "$GITHUB_WORKSPACE/jcf-registro-mlkit/analysis_options.yaml" analysis_options.yaml
           cp "$GITHUB_WORKSPACE/jcf-registro-mlkit/lib/main.dart" lib/main.dart
+          rm -rf test
 
-      - name: Configurar Android e iPhone
+      - name: Configurar permisos y plataformas
         shell: bash
         run: |
           python3 <<'PY'
@@ -56,58 +50,31 @@ jobs:
           import xml.etree.ElementTree as ET
 
           root = Path('build/jcf_registro')
-
           gradle = root / 'android/app/build.gradle.kts'
-          if gradle.exists():
-              text = gradle.read_text()
-              text = text.replace('minSdk = flutter.minSdkVersion', 'minSdk = 24')
-              gradle.write_text(text)
-          else:
-              gradle = root / 'android/app/build.gradle'
-              text = gradle.read_text()
-              text = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 24', text)
-              gradle.write_text(text)
+          text = gradle.read_text().replace('minSdk = flutter.minSdkVersion', 'minSdk = 24')
+          gradle.write_text(text)
 
           manifest = root / 'android/app/src/main/AndroidManifest.xml'
-          text = manifest.read_text().replace('android:label="jcf_registro"', 'android:label="JCF Registro"')
-          manifest.write_text(text)
+          manifest.write_text(manifest.read_text().replace('android:label="jcf_registro"', 'android:label="JCF Registro"'))
 
           plist = root / 'ios/Runner/Info.plist'
           tree = ET.parse(plist)
-          dict_node = tree.getroot().find('dict')
-
-          def set_key(key, value):
-              children = list(dict_node)
-              for i, child in enumerate(children):
-                  if child.tag == 'key' and child.text == key:
-                      children[i + 1].text = value
+          dictionary = tree.getroot().find('dict')
+          def set_string(key, value):
+              items = list(dictionary)
+              for i, item in enumerate(items):
+                  if item.tag == 'key' and item.text == key:
+                      items[i + 1].text = value
                       return
-              key_node = ET.SubElement(dict_node, 'key')
-              key_node.text = key
-              value_node = ET.SubElement(dict_node, 'string')
-              value_node.text = value
-
-          set_key('CFBundleDisplayName', 'JCF Registro')
-          set_key('NSCameraUsageDescription', 'JCF Registro usa la cámara para leer la cédula. La foto no se almacena.')
-          set_key('NSPhotoLibraryUsageDescription', 'JCF Registro permite seleccionar una foto de cédula para leer sus datos. La foto no se almacena.')
+              ET.SubElement(dictionary, 'key').text = key
+              ET.SubElement(dictionary, 'string').text = value
+          set_string('CFBundleDisplayName', 'JCF Registro')
+          set_string('NSCameraUsageDescription', 'JCF Registro usa la cámara para leer la cédula. La foto no se almacena.')
+          set_string('NSPhotoLibraryUsageDescription', 'JCF Registro permite seleccionar una foto de cédula para leer sus datos. La foto no se almacena.')
           tree.write(plist, encoding='utf-8', xml_declaration=True)
 
           project = root / 'ios/Runner.xcodeproj/project.pbxproj'
-          if project.exists():
-              text = project.read_text()
-              text = re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.5;', text)
-              project.write_text(text)
-
-          framework_info = root / 'ios/Flutter/AppFrameworkInfo.plist'
-          if framework_info.exists():
-              tree = ET.parse(framework_info)
-              root_node = tree.getroot().find('dict')
-              children = list(root_node)
-              for i, child in enumerate(children):
-                  if child.tag == 'key' and child.text == 'MinimumOSVersion':
-                      children[i + 1].text = '15.5'
-                      break
-              tree.write(framework_info, encoding='utf-8', xml_declaration=True)
+          project.write_text(re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.5;', project.read_text()))
           PY
 
       - name: Descargar dependencias
@@ -118,27 +85,24 @@ jobs:
         working-directory: build/jcf_registro
         run: flutter analyze
 
-      - name: Crear APK sin conexión
+      - name: Crear APK offline
         working-directory: build/jcf_registro
         run: flutter build apk --release
 
-      - name: Preparar archivos entregables
+      - name: Preparar entregables
         shell: bash
         run: |
           cp build/jcf_registro/build/app/outputs/flutter-apk/app-release.apk build/JCF-Registro-MLKit.apk
           rm -rf build/jcf_registro/.dart_tool build/jcf_registro/build
-          cd build
-          zip -qr jcf-registro-mlkit-source.zip jcf_registro
+          cd build && zip -qr jcf-registro-mlkit-source.zip jcf_registro
 
-      - name: Subir APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: JCF-Registro-MLKit-Android
           path: build/JCF-Registro-MLKit.apk
           if-no-files-found: error
 
-      - name: Subir proyecto iOS y Android
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: JCF-Registro-MLKit-Codigo
           path: build/jcf-registro-mlkit-source.zip
