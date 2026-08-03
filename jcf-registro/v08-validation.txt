@@ -1,0 +1,1 @@
+Validación de sintaxis de JCF Registro Web 0.8.0
